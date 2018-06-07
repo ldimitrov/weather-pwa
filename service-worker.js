@@ -1,4 +1,5 @@
-var cacheName = 'weatherPWA';
+var dataCacheName = 'weatherData-v1';
+var cacheName = 'weatherPWA-v1';
 var filesToCache = [
     '/',
     '/index.html',
@@ -34,7 +35,7 @@ self.addEventListener('activate', function (e) {
     e.waitUntil(
         caches.keys().then(function (keyList) {
             return Promise.all(keyList.map(function (key) {
-                if (key !== cacheName) {
+                if (key !== cacheName && key !== dataCacheName) {
                     console.log('Service Worker - Removing old cache', key);
                     return caches.delete(key);
                 }
@@ -46,9 +47,23 @@ self.addEventListener('activate', function (e) {
 
 self.addEventListener('fetch', function (e) {
     console.log('Service Worker - fetch', e.request.url);
-    e.respondWith(
-        caches.match(e.request).then(function(response) {
-            return response || fetch(e.request);
-        })
-    );
+    var dataUrl = 'https://query.yahooapis.com/v1/public/yql';
+    if (e.request.url.indexOf(dataUrl) > -1) {
+        // When the request URL contains dataUrl, the app is asking for fresh weather data.
+        e.respondWith(
+            caches.open(dataCacheName).then(function (cache) {
+                return fetch(e.request).then(function (response) {
+                    cache.put(e.request.url, response.clone());
+                    return response;
+                });
+            })
+        );
+    } else {
+        // The app is asking for app shell files. In this scenario the app uses the Cache
+        e.respondWith(
+            caches.match(e.request).then(function (response) {
+                return response || fetch(e.request);
+            })
+        );
+    }
 });
